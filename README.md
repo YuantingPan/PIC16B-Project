@@ -6,7 +6,7 @@ Collaborators: Euibin Kim, Lei Xu, Yuanting Pan
 
 ## Tic-Tac-Toe 
 
-. . .
+X . .
 
 . O .
 
