@@ -8,6 +8,6 @@ Collaborators: Euibin Kim, Lei Xu, Yuanting Pan
 
 X O X
 
-. O .
+. O O
 
 O X .
