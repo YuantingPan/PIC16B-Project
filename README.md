@@ -11,3 +11,9 @@ X O X
 . O O
 
 O X .
+
+## Tic-Tac-Toe-2
+
+O . .
+. . .
+. . .
