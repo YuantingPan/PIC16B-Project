@@ -61,10 +61,13 @@ def get_upload_file():
 
       img = Image.open(f.filename)
       img = img.convert('RGB')
+      img = transforms.Grayscale(num_output_channels=3)(img)
+
       img = transforms.Resize((128, 128))(img)
       img = transforms.ToTensor()(img)
-      img = transforms.Grayscale(num_output_channels=3)(img)
       img = transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])(img)
+      pred_fraction = None
+      pred_label = None
       model.eval()
       with torch.no_grad():
          logit = model(torch.tensor(np.expand_dims(img,axis=0)).to(device)).detach().cpu().numpy()
