@@ -4,16 +4,4 @@ This project will create a face detection algorithm based on Convolutional Neura
 
 Collaborators: Euibin Kim, Lei Xu, Yuanting Pan
 
-## Tic-Tac-Toe 
-
-X O X
-
-. O O
-
-O X .
-
-## Tic-Tac-Toe-2
-
-O . .
-. . .
-. . .
+Copy of the latest training on Colab: [here](https://colab.research.google.com/drive/1hPL5aEelaZ2Ejdp5q9PIeSnFan5EosCB?usp=sharing)
