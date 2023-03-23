@@ -1,0 +1,233 @@
+---
+title: "Project (Yuanting part)"
+author: Yuanting
+date: 'Mar 23, 2023'
+image: "cover.jpeg"
+categories: [Project]
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    number-sections: true
+    highlight-style: github
+jupyter: python3
+execute:
+    enabled: false
+---
+
+## Project Description
+
+In this project, we aim to develop a machine learning model to detect and analyze humans' facial expressions. The model will receive a picture of human face, and gives a prediction of the humans' emotions. In addition, we apply this model to a customized website, where users can upload their face images and receive quick facial expression analysis.
+
+### Dataset Description
+
+Our image dataset used for training and evaluation is obtained
+[here](https://www.kaggle.com/datasets/jonathanoheix/face-expression-recognition-dataset) from [kaggle](https://www.kaggle.com/).
+
+### Dataset Visualization
+
+We will first download and extract the dataset, as well as import our
+functions from `utils.py` and `models.py` that will be used and explained in later sections.
+
+```{python}
+# Import our functions
+from utils import *
+from models import *
+
+# Download the dataset
+%pip install einops
+!pip3 install --upgrade gdown --quiet
+!gdown 1tHHD_wkOREgBSYpC0DqPeKIktx9G3P5X
+
+# Make the directory to save the data
+root_dir = './'
+os.makedirs(os.path.join(root_dir, 'data'), exist_ok=True)
+
+# Extract data to the directory
+tar = tarfile.open("data.tar.gz", "r:gz")
+total_size = sum(f.size for f in tar.getmembers())
+with tqdm(total=total_size, unit="B", unit_scale=True, desc="Extracting tar.gz file") as pbar:
+    for member in tar.getmembers():
+        tar.extract(member, os.path.join(root_dir, 'data'))
+        pbar.update(member.size)
+
+# Close the tar.gz file
+tar.close()
+```
+
+And we get the directories for train set and test set:
+```{python}
+root_dir = os.path.join(root_dir, 'data', 'images')
+train_dir = os.path.join(root_dir, 'train')
+test_dir = os.path.join(root_dir, 'test')
+```
+
+Now the data has been saved to `./data/`. Next, we want to visuzlize how the images 
+in the dataset look like.
+We defined a function `show_examples` to accomplish this:
+```{python}
+def show_examples(train_dir):
+    """
+        Show 5 images of each facial expression from the training set.
+    """
+    target_var = os.listdir(train_dir)
+    fig, axes = plt.subplots(7, 5, figsize=(16, 24))
+
+    for i in range(len(target_var)):
+        for j in range(5):
+            image = cv2.imread(os.path.join(train_dir, target_var[i], os.listdir(os.path.join(train_dir, target_var[i]))[j]))
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            axes[i][j].imshow(image)
+            axes[i][j].set_title(target_var[i] + "-" + str(j+1))
+            axes[i][j].axis('off')
+                
+    plt.axis('off')
+    plt.show()
+```
+And we use this function visualize several sample images from the training set:
+```{python}
+show_examples(train_dir)
+```
+![](show_examples.png)
+
+The facial expressions were seperated to seven categories, and our task is to classify each to the correct category.
+
+Next, we want to check the number distribution of each category. We defined function
+`show_distribution` to accomplish this:
+```{python}
+def show_distribution(train_dir, test_dir):
+    """
+        Show the fraction of emotion labels in train and test sets.
+    """
+    target_var = os.listdir(train_dir)
+    x_train = np.array([ len(os.listdir(os.path.join(train_dir, i))) for i in target_var ])
+    x_test = np.array([ len(os.listdir(os.path.join(test_dir, i))) for i in target_var ])
+    label = target_var
+    
+    fig, axes = plt.subplots(1, 2, figsize=(8,4))
+    axes[0].pie(x_train, labels=label, autopct='%1.1f%%',shadow=True, startangle=90)
+    axes[1].pie(x_test, labels=label, autopct='%1.1f%%',shadow=True, startangle=90)
+    axes[0].set_title('Train')
+    axes[1].set_title('Test')
+    plt.show()
+
+    for i in target_var:
+        print('Emotion : ' + i )
+        print('\tTraining : ' + str(len(os.listdir(os.path.join(train_dir, i)))) +
+              '\n\t Testing : ' + str(len(os.listdir(os.path.join(test_dir, i)))))
+```
+And apply this function on train set and test set:
+```{python}
+show_distribution(train_dir, test_dir)
+```
+![](show_distribution.png)
+We can see that the **happy** label accounts for the largest percentage of all images, while the **disgust** images are the fewest. As **happy** images compose about **26%** of all test images, this percentage should be the baseline accuracy for our project model.
+
+
+## Model Evaluation
+
+### Test Accuracy
+
+After applying data augmentation on our models, we find that `resnet_finetune4` reached a higher validation accuracy (~65%) than `resnet_finetune5` (~63%).
+
+Now we want to test the model `resnet_finetune4` on the unseen test dataset, and see how well our model can be generalized to unfamiliar inputs.
+
+First, we load our test set:
+```{python}
+test_loader = torch.utils.data.DataLoader(
+    test_dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False
+)
+```
+
+Next, we define a function `test_evaluate` to get the model's predicted labels for the input test images. To be specific, we set the model to be in evaluation mode using `model.eval()`, and pass all inputs to the model with `torch.no_grad()` that will keep model parameters intact during evaluation. And the output will be the model's predicted labels.
+```{python}
+def test_evaluate(model, test_loader, device):
+    """
+        Pass the data in test_loader to the model,
+        and get the model's predicted labels
+    """
+
+    # Evaluation mode. Use cuda if available
+    try:
+        model.eval().cuda() 
+    except:
+        model.eval()
+
+    labels = []
+    
+    # Keep model parameters intact and run predictions
+    with torch.no_grad():
+        for inputs in test_loader:
+            inputs = inputs[0].to(device)
+            logits = model(inputs)
+            _, predictions = torch.max(logits, dim=1)
+
+            for prediction in predictions:
+                labels += [prediction.item()]
+
+    return labels
+```
+
+
+```{python}
+# Get predicted labels for test set
+pred_labels = test_evaluate(resnet_finetune4, test_loader, device)
+
+# How many predicted labels are correct
+count = 0
+true_labels = []
+for i in range(len(pred_labels)):
+    true_labels.append(test_dataset[i][1])
+    if pred_labels[i] == test_dataset[i][1]:
+        count += 1
+
+# Percentage of correct predictions
+print(count / len(pred_labels))
+```
+```{_}
+0.6293518256439287
+```
+
+The model `resnet_finetune4` gives a **63%** accuracy on test set. This is similar to the validation accuracy, and is much higher than the baseline accuracy. Given the complex nature of facial expression, this is a relatively satisfactory result.
+
+
+### Confusion Matrix
+
+A good way to evaluate the performance of a classification model is to use the confusion matrix. Here, we will use the `confusion_matrix` function from **sklearn** to easily achieve this.
+```{python}
+# Get the dictionaries converting from label name to index and vice versa
+class2label = test_dataset.class_to_idx
+label2class = {v: k for k, v in class2label.items()}
+
+# Get the confusion matrix
+cm = confusion_matrix(true_labels, pred_labels)
+# Normalize confusion matrix
+cm = cm/cm.astype(float).sum(axis=1)  
+
+# Plot using heatmap
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, cmap='Blues', cbar=False, xticklabels=label2class.values(),yticklabels=label2class.values())
+plt.xlabel('Predicted Labels')
+plt.ylabel('True Labels')
+plt.title('Confusion Matrix')
+plt.show()
+```
+![](confusion_matrix.png)
+
+We see that the model gives best predictions on *happy* and *surprise* images, and often confuses between *fear*, *sad*,and *angry* emotions.
+
+### Sample Predictions
+
+For our project, we want the facial expression analysis to be presented in the form of
+different fractions of each emotion, instead of one single output. This is because humans' emotions are often complex and could contain multiple emotions, and also this can help the user to decide which emotion fits the best.
+
+We defined functions `eval_sample_inputs` and `show_samples` to present the analysis on different images from the test set. And here is the result:
+
+```{python}
+inputs, true_labels, pred_fractions, pred_labels = eval_sample_inputs(resnet_finetune4, test_loader, device, seed=0)
+show_samples(inputs, true_labels, pred_fractions, pred_labels, label2class, class2label)
+```
+![](sample_results.png)
+
+In this sample, we see that most images are predicted correctly. For the two incorrectly predicted images, the correct labels are the ones with second highest possibility fractions. This demonstrates the accuracy of our model, and the utility of presenting the results in fraction form.
+
