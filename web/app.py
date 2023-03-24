@@ -74,10 +74,6 @@ def get_upload_file():
          logit = np.maximum(logit, 0)    # relu
          pred_fraction = logit / np.sum(logit)  # normalize
          pred_label = np.argmax(logit)
-      invTrans = transforms.Compose([ transforms.Normalize(mean = [ 0., 0., 0. ], std = [ 1/0.229, 1/0.224, 1/0.225 ]),
-                              transforms.Normalize(mean = [ -0.485, -0.456, -0.406 ], std = [ 1., 1., 1. ]) ])
-      image = invTrans(img)
-      image = np.moveaxis(image.numpy(), 0, -1)
       frac = pred_fraction[0]
       sorted_id = np.flip(np.argsort(frac))
       valid_id = frac[sorted_id]!=0   # excluding zero fractions
